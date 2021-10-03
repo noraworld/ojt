@@ -20,7 +20,7 @@ You can use some options for Open JTalk as is.
 The example below plays sound at 2x speed.
 
 ```
-bin/ojt r 2.0
+bin/ojt -r 2.0
 ```
 
 For details on the options for Open JTalk, refer to its help message.
