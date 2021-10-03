@@ -1,0 +1,483 @@
+#!/usr/bin/env bash
+
+DIR=$(dirname $(realpath ojtune))
+MEMORY_FILENAME=".ojtune_memory"
+DEFAULT_PARAMS=".default_params"
+
+
+
+eval $(cat "$DIR/$DEFAULT_PARAMS")
+
+
+
+main() {
+  if [ ! -e "$DIR/$MEMORY_FILENAME" ]; then
+    touch "$DIR/$MEMORY_FILENAME"
+  fi
+
+  if [ ! -e "$DIR/$DEFAULT_PARAMS" ]; then
+    touch "$DIR/$DEFAULT_PARAMS"
+  fi
+
+  echo "Type \"exit\" to quit tuning"
+  echo "Type \"help\" to show help"
+  echo
+  echo -e "\033[38;05;9mMake sure your headphone’s volume is not too large!\033[00m"
+  echo
+
+  while true; do
+    exec < /dev/tty
+    read -e -p "> " command
+
+    case "$command" in
+      "exit" | "quit")
+        exit 0
+        ;;
+      help* | \?*)
+        parameter=($command)
+        help "${parameter[1]}"
+        continue
+        ;;
+      "speak")
+        speak
+        continue
+        ;;
+      "option" | "options" | "show-option" | "show-options")
+        echo
+        cat "$DIR/$MEMORY_FILENAME" | sed '/^$/d'
+        echo
+        continue
+        ;;
+      "reset")
+        read -e -p "Are you sure you want to delete all memories? [yes/no]: " confirm
+
+        if [ "$confirm" = "yes" ]; then
+          echo "" > "$DIR/$MEMORY_FILENAME"
+          echo "Deleted"
+        else
+          echo "Canceled"
+        fi
+
+        continue
+        ;;
+    esac
+
+    case "$command" in
+      a* | b* | fm* | g* | jf* | jm* | p* | r* | s* | u* | z* | text*)
+        parameter=($command)
+
+        if [ "${parameter[1]}" = "" ]; then
+          echo "Please specify a value" >&2
+          continue
+        fi
+
+        ;;
+    esac
+
+    case "$command" in
+      text*)
+        renew_memory "TEXT"
+        ;;
+      a*)
+        renew_memory "ALL_PASS"
+        ;;
+      b*)
+        renew_memory "POSTFILTERING_COEFFICIENT"
+        ;;
+      fm*)
+        renew_memory "HALF_TONE"
+        ;;
+      g*)
+        renew_memory "VOLUME"
+        ;;
+      jf*)
+        renew_memory "GV_F0"
+        ;;
+      jm*)
+        renew_memory "GV_SPECTRUM"
+        ;;
+      m*)
+        renew_memory "VOICE"
+        ;;
+      p*)
+        renew_memory "FRAME_PERIOD"
+        ;;
+      r*)
+        renew_memory "SPEED"
+        ;;
+      s*)
+        renew_memory "SAMPLE_RATE"
+        ;;
+      u*)
+        renew_memory "VOICE_THRESHOLD"
+        ;;
+      x*)
+        renew_memory "DIC"
+        ;;
+      z*)
+        renew_memory "BUFFER_SIZE"
+        ;;
+      "")
+        continue
+        ;;
+      *)
+        echo "Invalid command: $command" >&2
+        continue
+        ;;
+    esac
+
+    speak
+  done
+}
+
+
+
+speak() {
+  TEXT="$DEFAULT_TEXT"
+  ALL_PASS=""
+  POSTFILTERING_COEFFICIENT=""
+  HALF_TONE=""
+  VOLUME=""
+  GV_F0=""
+  GV_SPECTRUM=""
+  VOICE="$DEFAULT_VOICE"
+  FRAME_PERIOD=""
+  SPEED=""
+  SAMPLE_RATE=""
+  VOICE_THRESHOLD=""
+  DIC="$DEFAULT_DIC"
+  BUFFER_SIZE=""
+
+  eval $(cat "$DIR/$MEMORY_FILENAME")
+
+  options=""
+  load_options "-a"  $ALL_PASS
+  load_options "-b"  $POSTFILTERING_COEFFICIENT
+  load_options "-fm" $HALF_TONE
+  load_options "-g"  $VOLUME
+  load_options "-jf" $GV_F0
+  load_options "-jm" $GV_SPECTRUM
+  load_options "-p"  $FRAME_PERIOD
+  load_options "-r"  $SPEED
+  load_options "-s"  $SAMPLE_RATE
+  load_options "-u"  $VOICE_THRESHOLD
+  load_options "-z"  $BUFFER_SIZE
+
+  ojt_command="echo \"$TEXT\" | open_jtalk -ow >(aplay --quiet) -m $VOICE -x $DIC"
+  eval "${ojt_command}${options}"
+}
+
+
+
+renew_memory() {
+  sed -i "/^$1=/d" "$DIR/$MEMORY_FILENAME"
+  echo "$1=\"${parameter[1]}\"" >> "$DIR/$MEMORY_FILENAME"
+}
+
+
+
+load_options() {
+  if [ "$2" != "" ]; then
+    options="${options} $1 $2"
+  fi
+}
+
+
+
+# https://dyama.org/2021/09/%E9%9F%B3%E5%A3%B0%E5%90%88%E6%88%90%E3%82%A8%E3%83%B3%E3%82%B8%E3%83%B3-openjtalk-%E3%81%AE%E3%83%81%E3%83%A5%E3%83%BC%E3%83%8B%E3%83%B3%E3%82%B0/
+help() {
+  help_message=""
+
+  ### built-in commands
+
+  if [ "$1" = "" ]; then
+    help_message="${help_message}built-in commands:\n\n"
+  fi
+
+  if [ "$1" = "exit" ] || [ "$1" = "quit" ] || [ "$1" = "" ]; then
+    if [ "$1" != "" ]; then
+      help_message="${help_message}built-in commands:\n"
+    fi
+
+    help_message="$help_message	exit|quit\n"
+    help_message="$help_message		Quit tuning\n\n"
+  fi
+
+  if [ "$1" = "help" ] || [ "$1" = "" ]; then
+    if [ "$1" != "" ]; then
+      help_message="${help_message}built-in commands:\n"
+    fi
+
+    help_message="$help_message	help|? [<COMMAND>]\n"
+    help_message="$help_message		Show this help message\n"
+    help_message="$help_message		Specify <COMMAND> to only show the target command information\n\n"
+  fi
+
+  if [ "$1" = "option" ] || [ "$1" = "options" ] || [ "$1" = "show-option" ] || [ "$1" = "show-options" ] || [ "$1" = "" ]; then
+    if [ "$1" != "" ]; then
+      help_message="${help_message}built-in commands:\n"
+    fi
+
+    help_message="$help_message	option|options|show-option|show-options\n"
+    help_message="$help_message		Show the current option parameters stored in other file\n\n"
+  fi
+
+  if [ "$1" = "reset" ] || [ "$1" = "" ]; then
+    if [ "$1" != "" ]; then
+      help_message="${help_message}built-in commands:\n"
+    fi
+
+    help_message="$help_message	reset\n"
+    help_message="$help_message		Delete all parameters stored in other file\n\n"
+  fi
+
+  if [ "$1" = "speak" ] || [ "$1" = "" ]; then
+    if [ "$1" != "" ]; then
+      help_message="${help_message}built-in commands:\n"
+    fi
+
+    help_message="$help_message	speak\n"
+    help_message="$help_message		Allow open_jtalk to speak specified text\n\n"
+  fi
+
+  ### open_jtalk options
+
+  if [ "$1" = "" ]; then
+    help_message="${help_message}open_jtalk options:\n\n"
+  fi
+
+  if [ "$1" = "a" ] || [ "$1" = "" ]; then
+    if [ "$1" != "" ]; then
+      help_message="${help_message}open_jtalk options:\n"
+    fi
+
+    help_message="$help_message	a <VALUE>\n"
+    help_message="$help_message		Description:\n"
+    help_message="$help_message			Set all-pass constant\n"
+    help_message="$help_message			声質を設定します\n"
+    help_message="$help_message		Minimum:\n"
+    help_message="$help_message			0.0\n"
+    help_message="$help_message			ヘリウムガス声\n"
+    help_message="$help_message		Maximum:\n"
+    help_message="$help_message			1.0\n"
+    help_message="$help_message			オネエ声\n"
+    help_message="$help_message		Default:\n"
+    help_message="$help_message			auto\n"
+  fi
+
+  if [ "$1" = "b" ] || [ "$1" = "" ]; then
+    if [ "$1" != "" ]; then
+      help_message="${help_message}open_jtalk options:\n"
+    fi
+
+    help_message="$help_message	b <VALUE>\n"
+    help_message="$help_message		Description:\n"
+    help_message="$help_message			Set postfiltering coefficient\n"
+    help_message="$help_message			後処理フィルター係数を設定します\n"
+    help_message="$help_message		Minimum:\n"
+    help_message="$help_message			0.0\n"
+    help_message="$help_message			ザラザラ\n"
+    help_message="$help_message		Maximum:\n"
+    help_message="$help_message			1.0\n"
+    help_message="$help_message			なめらか\n"
+    help_message="$help_message		Default:\n"
+    help_message="$help_message			0.0\n"
+  fi
+
+  if [ "$1" = "fm" ] || [ "$1" = "" ]; then
+    if [ "$1" != "" ]; then
+      help_message="${help_message}open_jtalk options:\n"
+    fi
+
+    help_message="$help_message	fm <VALUE>\n"
+    help_message="$help_message		Description:\n"
+    help_message="$help_message			Set additional half-tone\n"
+    help_message="$help_message			ハーフトーンを設定します\n"
+    help_message="$help_message		Minimum:\n"
+    help_message="$help_message			n/a\n"
+    help_message="$help_message			落ち着いた声\n"
+    help_message="$help_message		Maximum:\n"
+    help_message="$help_message			n/a\n"
+    help_message="$help_message			裏声\n"
+    help_message="$help_message		Default:\n"
+    help_message="$help_message			0.0\n"
+  fi
+
+  if [ "$1" = "g" ] || [ "$1" = "" ]; then
+    if [ "$1" != "" ]; then
+      help_message="${help_message}open_jtalk options:\n"
+    fi
+
+    help_message="$help_message	g <VALUE>\n"
+    help_message="$help_message		Description:\n"
+    help_message="$help_message			Set volume\n"
+    help_message="$help_message			ボリュームを設定します\n"
+    help_message="$help_message		Minimum:\n"
+    help_message="$help_message			n/a\n"
+    help_message="$help_message		Maximum:\n"
+    help_message="$help_message			n/a\n"
+    help_message="$help_message		Default:\n"
+    help_message="$help_message			0.0\n"
+  fi
+
+  if [ "$1" = "jf" ] || [ "$1" = "" ]; then
+    if [ "$1" != "" ]; then
+      help_message="${help_message}open_jtalk options:\n"
+    fi
+
+    help_message="$help_message	jf <VALUE>\n"
+    help_message="$help_message		Description:\n"
+    help_message="$help_message			Set weight of GV for log F0\n"
+    help_message="$help_message			抑揚を設定します\n"
+    help_message="$help_message		Minimum:\n"
+    help_message="$help_message			0.0\n"
+    help_message="$help_message		Maximum:\n"
+    help_message="$help_message			n/a\n"
+    help_message="$help_message		Default:\n"
+    help_message="$help_message			1.0\n"
+  fi
+
+  if [ "$1" = "jm" ] || [ "$1" = "" ]; then
+    if [ "$1" != "" ]; then
+      help_message="${help_message}open_jtalk options:\n"
+    fi
+
+    help_message="$help_message	jm <VALUE>\n"
+    help_message="$help_message		Description:\n"
+    help_message="$help_message			Set weight of GV for spectrum\n"
+    help_message="$help_message			発声音量を設定します\n"
+    help_message="$help_message		Minimum:\n"
+    help_message="$help_message			0.0\n"
+    help_message="$help_message		Maximum:\n"
+    help_message="$help_message			n/a\n"
+    help_message="$help_message		Default:\n"
+    help_message="$help_message			1.0\n"
+  fi
+
+  if [ "$1" = "m" ] || [ "$1" = "" ]; then
+    if [ "$1" != "" ]; then
+      help_message="${help_message}open_jtalk options:\n"
+    fi
+
+    help_message="$help_message	m <VALUE>\n"
+    help_message="$help_message		Description:\n"
+    help_message="$help_message			Set HTS voice file\n"
+    help_message="$help_message			ボイスモデルのファイルパスを設定します\n"
+  fi
+
+  if [ "$1" = "p" ] || [ "$1" = "" ]; then
+    if [ "$1" != "" ]; then
+      help_message="${help_message}open_jtalk options:\n"
+    fi
+
+    help_message="$help_message	p <VALUE>\n"
+    help_message="$help_message		Description:\n"
+    help_message="$help_message			Set frame period (point)\n"
+    help_message="$help_message			フレーム・ピリオドを設定します\n"
+    help_message="$help_message		Minimum:\n"
+    help_message="$help_message			1\n"
+    help_message="$help_message			レイテンシー軽減、CPU 負荷増\n"
+    help_message="$help_message		Maximum:\n"
+    help_message="$help_message			n/a\n"
+    help_message="$help_message			ノイズ改善、CPU 負荷減\n"
+    help_message="$help_message		Default:\n"
+    help_message="$help_message			auto\n"
+  fi
+
+  if [ "$1" = "r" ] || [ "$1" = "" ]; then
+    if [ "$1" != "" ]; then
+      help_message="${help_message}open_jtalk options:\n"
+    fi
+
+    help_message="$help_message	r <VALUE>\n"
+    help_message="$help_message		Description:\n"
+    help_message="$help_message			Set speech speed rate\n"
+    help_message="$help_message			発声速度を設定します\n"
+    help_message="$help_message		Minimum:\n"
+    help_message="$help_message			0.0\n"
+    help_message="$help_message			ゆっくり\n"
+    help_message="$help_message		Maximum:\n"
+    help_message="$help_message			n/a\n"
+    help_message="$help_message			早口\n"
+    help_message="$help_message		Default:\n"
+    help_message="$help_message			1.0\n"
+  fi
+
+  if [ "$1" = "s" ] || [ "$1" = "" ]; then
+    if [ "$1" != "" ]; then
+      help_message="${help_message}open_jtalk options:\n"
+    fi
+
+    help_message="$help_message	s <VALUE>\n"
+    help_message="$help_message		Description:\n"
+    help_message="$help_message			Set sampling frequency\n"
+    help_message="$help_message			サンプリング周波数を設定します\n"
+    help_message="$help_message		Minimum:\n"
+    help_message="$help_message			1\n"
+    help_message="$help_message		Maximum:\n"
+    help_message="$help_message			n/a\n"
+    help_message="$help_message		Default:\n"
+    help_message="$help_message			auto\n"
+  fi
+
+  if [ "$1" = "u" ] || [ "$1" = "" ]; then
+    if [ "$1" != "" ]; then
+      help_message="${help_message}open_jtalk options:\n"
+    fi
+
+    help_message="$help_message	u <VALUE>\n"
+    help_message="$help_message		Description:\n"
+    help_message="$help_message			Set voiced/unvoiced threshold\n"
+    help_message="$help_message			発声・無発声のしきい値を設定します\n"
+    help_message="$help_message		Minimum:\n"
+    help_message="$help_message			0.0\n"
+    help_message="$help_message			ノイズが入る\n"
+    help_message="$help_message		Maximum:\n"
+    help_message="$help_message			1.0\n"
+    help_message="$help_message			ガザガザ声\n"
+    help_message="$help_message		Default:\n"
+    help_message="$help_message			0.5\n"
+  fi
+
+  if [ "$1" = "x" ] || [ "$1" = "" ]; then
+    if [ "$1" != "" ]; then
+      help_message="${help_message}open_jtalk options:\n"
+    fi
+
+    help_message="$help_message	x <VALUE>\n"
+    help_message="$help_message		Description:\n"
+    help_message="$help_message			Set dictionary directory\n"
+    help_message="$help_message			辞書のディレクトリパスを設定します\n"
+  fi
+
+  if [ "$1" = "z" ] || [ "$1" = "" ]; then
+    if [ "$1" != "" ]; then
+      help_message="${help_message}open_jtalk options:\n"
+    fi
+
+    help_message="$help_message	z <VALUE>\n"
+    help_message="$help_message		Description:\n"
+    help_message="$help_message			Set audio buffer size (if 0, turn off)\n"
+    help_message="$help_message			バッファサイズを設定します (0 を指定するとオフになります)\n"
+    help_message="$help_message		Minimum:\n"
+    help_message="$help_message			0\n"
+    help_message="$help_message		Maximum:\n"
+    help_message="$help_message			n/a\n"
+    help_message="$help_message		Default:\n"
+    help_message="$help_message			0\n"
+  fi
+
+  if [ "$1" = "" ]; then
+    # https://stackoverflow.com/questions/12524308/bash-strip-trailing-linebreak-from-output
+    echo -e "${help_message}" | sed -Ez '$ s/\n+$//' | less
+  else
+    echo
+    echo -e "${help_message}" | sed -Ez '$ s/\n+$//'
+    echo
+    echo
+  fi
+}
+
+
+
+main

@@ -1,0 +1,125 @@
+#!/usr/bin/env bash
+
+PROGNAME=$(basename $0)
+DIR=$(dirname $(realpath $0))
+DEFAULT_PARAMS=".default_params"
+
+
+
+main() {
+  if [ ! -e "$DIR/$DEFAULT_PARAMS" ]; then
+    touch "$DIR/$DEFAULT_PARAMS"
+  fi
+
+  eval $(cat "$DIR/$DEFAULT_PARAMS")
+
+  if [[ -z "${argv[@]}" ]]; then
+    text="$DEFAULT_TEXT"
+  else
+    text="${argv[@]}"
+  fi
+
+  if [ -z "$voice_path" ]; then
+    voice_path="$DEFAULT_VOICE"
+  fi
+
+  if [ -z "$dic_dir" ]; then
+    dic_dir="$DEFAULT_DIC"
+  fi
+
+  validate
+
+  # For crontab
+  export PULSE_RUNTIME_PATH="/run/user/$(id -u)/pulse/"
+
+  echo "$text" | open_jtalk -ow >(aplay --quiet) -m $voice_path -x $dic_dir "${options[@]}"
+}
+
+
+
+validate() {
+  if ! type open_jtalk 1>/dev/null 2>/dev/null; then
+    echo "$PROGNAME: Command not found: open_jtalk" >&2
+    echo "" >&2
+    echo "You need to install the following packages before you execute $PROGNAME" >&2
+    echo "" >&2
+    echo "	* open-jtalk" >&2
+    echo "	* hts-voice-nitech-jp-atr503-m001" >&2
+    echo "	* open-jtalk-mecab-naist-jdic" >&2
+    echo "" >&2
+    echo "	For apt:" >&2
+    echo "		sudo apt -y install open-jtalk hts-voice-nitech-jp-atr503-m001 open-jtalk-mecab-naist-jdic" >&2
+    exit 1
+  fi
+
+  if [ -z "$voice_path" ]; then
+    echo "$PROGNAME: Neither an option \"-m\" nor an environment variable \"DEFAULT_VOICE\" are specified" >&2
+    echo "HINT: You can set a environment variable with $DIR/$DEFAULT_PARAMS"
+    exit 1
+  fi
+
+  if [ -z "$dic_dir" ]; then
+    echo "$PROGNAME: Neither an option \"-x\" nor an environment variable \"DEFAULT_DIC\" are specified" >&2
+    echo "HINT: You can set a environment variable with $DIR/$DEFAULT_PARAMS"
+    exit 1
+  fi
+
+  if ! [ -e "$voice_path" ]; then
+    echo "$PROGNAME: No such file: $voice_path" >&2
+    echo "Please specify a HTS voice file path with an option \"-m\" or an environment variable \"DEFAULT_VOICE\"" >&2
+    exit 1
+  fi
+
+  if ! [ -d "$dic_dir" ]; then
+    echo "$PROGNAME: No such directory: $dic_dir" >&2
+    echo "Please specify a dictionary directory with an option \"-x\" or an environment variable \"DEFAULT_DIC\"" >&2
+    exit 1
+  fi
+}
+
+
+parse_options() {
+  options=()
+  argv=()
+
+  while (( $# > 0 )); do
+    case $1 in
+      -m)
+        if [[ -z "$2" ]] || [[ "$2" =~ ^-+ ]]; then
+          echo "$PROGNAME: -m requires an argument which is a HTS voice file path" >&2
+          exit 1
+        else
+          voice_path="$2"
+          shift
+        fi
+        ;;
+      -x)
+        if [[ -z "$2" ]] || [[ "$2" =~ ^-+ ]]; then
+          echo "$PROGNAME: -x requires an argument which is a dictionary directory" >&2
+          exit 1
+        else
+          dic_dir="$2"
+          shift
+        fi
+        ;;
+      -*)
+        if [[ -z "$2" ]] || [[ "$2" =~ ^-+ ]]; then
+          options=("${options[@]}" "$1")
+        else
+          options=("${options[@]}" "$1" "$2")
+          shift
+        fi
+        ;;
+      *)
+        argv=("${argv[@]}" "$1")
+        ;;
+    esac
+
+    shift
+  done
+}
+
+
+
+parse_options "$@"
+main

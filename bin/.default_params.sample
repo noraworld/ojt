@@ -1,0 +1,3 @@
+DEFAULT_TEXT="はじめまして。音声合成エンジンの世界へようこそ"
+DEFAULT_VOICE="/usr/share/hts-voice/nitech-jp-atr503-m001/nitech_jp_atr503_m001.htsvoice"
+DEFAULT_DIC="/var/lib/mecab/dic/open-jtalk/naist-jdic"
