@@ -25,109 +25,150 @@ main() {
   echo -e "\033[38;05;9mMake sure your headphone’s volume is not too large!\033[00m"
   echo
 
+  IFS=""
+  command=""
+  echo -n "> "
+
   while true; do
+    escape_char=$(printf "\u1b")
+
     exec < /dev/tty
-    read -e -p "> " command
+    read -rsn1 char
 
-    case "$command" in
-      "exit" | "quit")
-        exit 0
-        ;;
-      help* | \?*)
-        parameter=($command)
-        help "${parameter[1]}"
-        continue
-        ;;
-      "speak")
-        speak
-        continue
-        ;;
-      "option" | "options" | "show-option" | "show-options")
-        echo
-        cat "$DIR/$MEMORY_FILENAME" | sed '/^$/d'
-        echo
-        continue
-        ;;
-      "reset")
-        read -e -p "Are you sure you want to delete all memories? [yes/no]: " confirm
+    if [[ $char = $escape_char ]]; then
+      read -rsn2 char
+    fi
 
-        if [ "$confirm" = "yes" ]; then
-          echo "" > "$DIR/$MEMORY_FILENAME"
-          echo "Deleted"
-        else
-          echo "Canceled"
-        fi
-
-        continue
+    case "$char" in
+      "[A")
+        echo "UP"
         ;;
-    esac
-
-    case "$command" in
-      a* | b* | fm* | g* | jf* | jm* | p* | r* | s* | u* | z* | text*)
-        parameter=($command)
-
-        if [ "${parameter[1]}" = "" ]; then
-          echo "Please specify a value" >&2
-          continue
-        fi
-
-        ;;
-    esac
-
-    case "$command" in
-      text*)
-        renew_memory "TEXT"
-        ;;
-      a*)
-        renew_memory "ALL_PASS"
-        ;;
-      b*)
-        renew_memory "POSTFILTERING_COEFFICIENT"
-        ;;
-      fm*)
-        renew_memory "HALF_TONE"
-        ;;
-      g*)
-        renew_memory "VOLUME"
-        ;;
-      jf*)
-        renew_memory "GV_F0"
-        ;;
-      jm*)
-        renew_memory "GV_SPECTRUM"
-        ;;
-      m*)
-        renew_memory "VOICE"
-        ;;
-      p*)
-        renew_memory "FRAME_PERIOD"
-        ;;
-      r*)
-        renew_memory "SPEED"
-        ;;
-      s*)
-        renew_memory "SAMPLE_RATE"
-        ;;
-      u*)
-        renew_memory "VOICE_THRESHOLD"
-        ;;
-      x*)
-        renew_memory "DIC"
-        ;;
-      z*)
-        renew_memory "BUFFER_SIZE"
+      "[B")
+        echo "DOWN"
         ;;
       "")
-        continue
+        echo
+        parse_command
+        IFS=""
+        command=""
+        echo -n "> "
         ;;
       *)
-        echo "Invalid command: $command" >&2
-        continue
+        echo -n "$char"
+        command="${command}${char}"
         ;;
     esac
-
-    speak
   done
+}
+
+
+
+parse_command() {
+  IFS=" "
+
+  case "$command" in
+    "exit" | "quit")
+      exit 0
+      ;;
+    help* | \?*)
+      parameter=($command)
+      help "${parameter[1]}"
+
+      return 1
+      ;;
+    "speak")
+      speak
+
+      return 1
+      ;;
+    "option" | "options" | "show-option" | "show-options")
+      echo
+      cat "$DIR/$MEMORY_FILENAME" | sed '/^$/d'
+      echo
+
+      return 1
+      ;;
+    "reset")
+      read -e -p "Are you sure you want to delete all memories? [yes/no]: " confirm
+
+      if [ "$confirm" = "yes" ]; then
+        echo "" > "$DIR/$MEMORY_FILENAME"
+        echo "Deleted"
+      else
+        echo "Canceled"
+      fi
+
+      return 1
+      ;;
+  esac
+
+  case "$command" in
+    a* | b* | fm* | g* | jf* | jm* | p* | r* | s* | u* | z* | text*)
+      parameter=($command)
+
+      if [ "${parameter[1]}" = "" ]; then
+        echo "Please specify a value" >&2
+
+        return 1
+      fi
+
+      ;;
+  esac
+
+  case "$command" in
+    text*)
+      renew_memory "TEXT"
+      ;;
+    a*)
+      renew_memory "ALL_PASS"
+      ;;
+    b*)
+      renew_memory "POSTFILTERING_COEFFICIENT"
+      ;;
+    fm*)
+      renew_memory "HALF_TONE"
+      ;;
+    g*)
+      renew_memory "VOLUME"
+      ;;
+    jf*)
+      renew_memory "GV_F0"
+      ;;
+    jm*)
+      renew_memory "GV_SPECTRUM"
+      ;;
+    m*)
+      renew_memory "VOICE"
+      ;;
+    p*)
+      renew_memory "FRAME_PERIOD"
+      ;;
+    r*)
+      renew_memory "SPEED"
+      ;;
+    s*)
+      renew_memory "SAMPLE_RATE"
+      ;;
+    u*)
+      renew_memory "VOICE_THRESHOLD"
+      ;;
+    x*)
+      renew_memory "DIC"
+      ;;
+    z*)
+      renew_memory "BUFFER_SIZE"
+      ;;
+    "")
+      return 1
+      ;;
+    *)
+      echo "Invalid command: $command" >&2
+
+      return 1
+      ;;
+  esac
+
+  speak
 }
 
 
@@ -238,6 +279,15 @@ help() {
 
     help_message="$help_message	speak\n"
     help_message="$help_message		Allow open_jtalk to speak specified text\n\n"
+  fi
+
+  if [ "$1" = "text" ] || [ "$1" = "" ]; then
+    if [ "$1" != "" ]; then
+      help_message="${help_message}built-in commands:\n"
+    fi
+
+    help_message="$help_message	text <TEXT>\n"
+    help_message="$help_message		Change text to be spoken\n\n"
   fi
 
   ### open_jtalk options
